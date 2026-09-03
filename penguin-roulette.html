@@ -8,6 +8,8 @@
 <meta property="og:title" content="ペンギンルーレット">
 <meta property="og:description" content="ペンギンが羽で今日の答えを指します。">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="ペンギンルーレット">
+<meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#EAF4F9">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐧</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,6 +34,7 @@
   header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
   h1{font-size:1.25rem;font-weight:700;letter-spacing:.04em;margin:0}
   .lede{font-size:.875rem;color:#123A5CAA;margin:6px 0 14px}
+  .lede.titled{font-size:1.375rem;font-weight:700;color:var(--ink);line-height:1.4;margin:10px 0 16px}
 
   button{font:inherit;cursor:pointer;border:none;border-radius:999px;transition:transform .1s,background .2s}
   button:focus-visible{outline:3px solid var(--beak);outline-offset:3px}
@@ -76,6 +79,7 @@
   }
   textarea{resize:vertical;min-height:180px}
   input[type=text]{font-size:.75rem}
+  input.title-in{font-size:1rem;margin-bottom:16px}
   input.bad{border-color:var(--blush)}
   .err{font-size:.75rem;color:#C0436A;margin:4px 0 0}
   .divider{margin-top:16px;padding-top:16px;border-top:2px solid #123A5C15}
@@ -110,7 +114,7 @@
     <h1>ペンギンルーレット</h1>
     <button id="muteBtn" class="chip" aria-pressed="false">音を消す</button>
   </header>
-  <p class="lede">羽が止まったところが今日の答え。</p>
+  <p class="lede" id="lede">羽が止まったところが今日の答え。</p>
 
   <div class="stage">
     <div class="wheel-slot">
@@ -152,7 +156,9 @@
   </div>
 
   <section class="panel" id="editPanel" hidden>
-    <label for="items">1行に1つ書いてください（最大20個）</label>
+    <label for="titleInput">なにを決める？（なくてもOK）</label>
+    <input type="text" id="titleInput" class="title-in" maxlength="40" placeholder="今日のランチ">
+    <label for="items">候補を1行に1つ（最大20個）</label>
     <textarea id="items" rows="8" placeholder="ラーメン&#10;カレー&#10;寿司"></textarea>
     <div class="row">
       <button id="clearBtn" class="ghost">全部消す</button>
@@ -188,7 +194,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  var state = { text: DEFAULT_TEXT, items: [], rotation: 0, spinning: false, muted: false, raf: 0 };
+  var state = { title: "", text: DEFAULT_TEXT, items: [], rotation: 0, spinning: false, muted: false, raf: 0 };
 
   /* ---------- share code ---------- */
   function encodeList(str) {
@@ -206,12 +212,16 @@
       return new TextDecoder().decode(bytes);
     } catch (e) { return null; }
   }
-  function extractCode(raw) {
+  function parseLink(raw) {
     var s = (raw || "").trim();
     if (!s) return null;
-    var m = s.match(/[?#&]r=([A-Za-z0-9\-_]+)/);
-    if (m) return m[1];
-    return /^[A-Za-z0-9\-_]+$/.test(s) ? s : null;
+    var mr = s.match(/[?#&]r=([A-Za-z0-9\-_]+)/);
+    var mt = s.match(/[?#&]t=([A-Za-z0-9\-_]+)/);
+    var code = mr ? mr[1] : (/^[A-Za-z0-9\-_]+$/.test(s) ? s : null);
+    if (!code) return null;
+    var text = decodeList(code);
+    if (text === null) return null;
+    return { title: mt ? (decodeList(mt[1]) || "") : "", text: text };
   }
 
   /* ---------- audio ---------- */
@@ -321,19 +331,31 @@
   function syncUrl() {
     var code = state.items.length ? encodeList(state.items.join("\n")) : "";
     if (!code) return "";
-    try { history.replaceState(null, "", "?r=" + code); } catch (e) {}
+    var q = "?" + (state.title ? "t=" + encodeList(state.title) + "&" : "") + "r=" + code;
+    try { history.replaceState(null, "", q); } catch (e) {}
     var base = location.origin && location.origin !== "null" ? location.origin + location.pathname : "";
-    return base ? base + "?r=" + code : "?r=" + code;
+    return base ? base + q : q;
   }
 
-  function setText(text, opts) {
+  function setState(title, text, opts) {
+    state.title = (title || "").trim();
     state.text = text;
     state.items = parseItems(text);
-    if (!opts || !opts.keepBox) $("items").value = text;
+    if (!opts || !opts.keepBox) {
+      $("items").value = text;
+      $("titleInput").value = state.title;
+    }
     drawWheel();
+
+    var lede = $("lede");
+    lede.textContent = state.title || "羽が止まったところが今日の答え。";
+    lede.classList.toggle("titled", !!state.title);
+    document.title = state.title ? state.title + "｜ペンギンルーレット" : "ペンギンルーレット";
+
     var url = syncUrl();
     $("shareUrl").value = url;
-    $("shareCount").textContent = "開くと同じ" + state.items.length + "個の候補で始まります。";
+    $("shareCount").textContent = (state.title ? "「" + state.title + "」を、" : "開くと同じ") +
+      state.items.length + "個の候補で始まります。";
     showHint();
     updateSpinBtn();
   }
@@ -410,7 +432,9 @@
       $("penguin").classList.add("jump");
 
       var win = state.items[indexAt(target)];
-      $("result").innerHTML = '<div class="card"><small>ペンギンが選んだのは</small><strong></strong></div>';
+      $("result").innerHTML = '<div class="card"><small></small><strong></strong></div>';
+      $("result").querySelector("small").textContent =
+        state.title ? state.title + "の答えは" : "ペンギンが選んだのは";
       $("result").querySelector("strong").textContent = win;
       fanfare();
       confetti();
@@ -443,12 +467,16 @@
     this.textContent = open ? "共有を閉じる" : "この候補を共有";
   });
 
+  $("titleInput").addEventListener("input", function () {
+    setState(this.value, state.text, { keepBox: true });
+  });
+
   $("items").addEventListener("input", function () {
-    setText(this.value, { keepBox: true });
+    setState(state.title, this.value, { keepBox: true });
     $("spinBtn").textContent = "まわす";
   });
 
-  $("clearBtn").addEventListener("click", function () { setText(""); });
+  $("clearBtn").addEventListener("click", function () { setState("", ""); });
   $("doneBtn").addEventListener("click", function () {
     $("editPanel").hidden = true;
     $("editBtn").textContent = "候補を書きかえる";
@@ -477,24 +505,22 @@
   });
 
   $("importBtn").addEventListener("click", function () {
-    var raw = $("importUrl").value;
-    var code = extractCode(raw);
-    var decoded = code ? decodeList(code) : null;
-    if (!decoded || !decoded.trim()) {
+    var parsed = parseLink($("importUrl").value);
+    if (!parsed || !parsed.text.trim()) {
       $("importUrl").classList.add("bad");
       $("importErr").textContent = "読み込めませんでした。リンク全体かコードを貼りなおしてください。";
       $("importErr").hidden = false;
       return;
     }
-    setText(decoded);
+    setState(parsed.title, parsed.text);
     $("importUrl").value = "";
     $("spinBtn").textContent = "まわす";
   });
 
   /* ---------- boot ---------- */
-  var fromUrl = extractCode(location.search + location.hash);
-  var initial = fromUrl ? decodeList(fromUrl) : null;
-  setText(initial && initial.trim() ? initial : DEFAULT_TEXT);
+  var booted = parseLink(location.search + location.hash);
+  if (booted && booted.text.trim()) setState(booted.title, booted.text);
+  else setState("", DEFAULT_TEXT);
 })();
 </script>
 </body>
