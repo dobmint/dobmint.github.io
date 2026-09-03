@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ペンギンルーレット</title>
+<meta name="description" content="ペンギンが羽で今日の答えを指すルーレット。候補を入れてリンクで渡せます。">
+<meta property="og:title" content="ペンギンルーレット">
+<meta property="og:description" content="ペンギンが羽で今日の答えを指します。">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#EAF4F9">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐧</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#123A5C; --deep:#0F2F4A; --ice:#EAF4F9;
+    --beak:#FFB020; --beak-dark:#D18A00; --blush:#FF8FAE; --ok:#4FB286;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    min-height:100vh;
+    background:radial-gradient(120% 80% at 50% 0%, #fff 0%, var(--ice) 45%, #D3E7F2 100%);
+    background-attachment:fixed;
+    color:var(--ink);
+    font-family:'Zen Maru Gothic','Hiragino Maru Gothic ProN','Hiragino Sans','Yu Gothic',system-ui,sans-serif;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:26rem;margin:0 auto;padding:24px 16px calc(32px + env(safe-area-inset-bottom))}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+  h1{font-size:1.25rem;font-weight:700;letter-spacing:.04em;margin:0}
+  .lede{font-size:.875rem;color:#123A5CAA;margin:6px 0 14px}
+
+  button{font:inherit;cursor:pointer;border:none;border-radius:999px;transition:transform .1s,background .2s}
+  button:focus-visible{outline:3px solid var(--beak);outline-offset:3px}
+  button:disabled{cursor:default}
+  .ghost{background:#fff;color:var(--ink);border:2px solid #123A5C22;font-size:.8125rem;font-weight:700;padding:12px}
+  .chip{background:#fff;color:var(--ink);border:2px solid #123A5C22;font-size:.8125rem;padding:6px 14px}
+  .primary{width:100%;padding:16px;font-size:1.125rem;font-weight:700;background:var(--beak);color:var(--deep);box-shadow:0 5px 0 var(--beak-dark)}
+  .primary:disabled{background:#B9CFDD;color:#fff;box-shadow:none}
+  .primary.is-spinning{background:#B9CFDD;color:#fff;box-shadow:none;transform:translateY(3px)}
+  .solid{width:100%;padding:12px;font-size:.875rem;font-weight:700;background:var(--deep);color:#fff}
+  .solid.copied{background:var(--ok)}
+  .row{display:flex;gap:8px;margin-top:8px}
+  .row>button{flex:1}
+
+  /* stage */
+  .stage{position:relative;width:100%;aspect-ratio:1/1.18}
+  .wheel-slot{position:absolute;left:0;right:0;bottom:0;padding-top:16%}
+  #wheelRot{filter:drop-shadow(0 10px 22px rgba(18,58,92,.22))}
+  #wheel{width:100%;display:block}
+  .penguin{position:absolute;left:50%;top:0;width:42%;transform:translateX(-50%);
+    transform-origin:50% 90%;filter:drop-shadow(0 6px 10px rgba(18,58,92,.25))}
+  .penguin.sway{animation:sway .5s ease-in-out infinite}
+  .penguin.jump{animation:jump 1s ease-in-out 2}
+  #wing{transform-origin:80px 62px;transition:transform .07s ease-out}
+  .seg-label{font-family:inherit;font-weight:700;fill:var(--ink)}
+
+  /* result */
+  .result{min-height:76px;display:flex;align-items:center;justify-content:center;margin-top:16px;text-align:center}
+  .hint{font-size:.875rem;color:#123A5C88}
+  .card{width:100%;background:#fff;border:3px solid var(--beak);border-radius:24px;padding:16px 20px;animation:pop .35s ease-out}
+  .card small{display:block;font-size:.75rem;color:#123A5C99;margin-bottom:4px}
+  .card strong{font-size:1.5rem;font-weight:700;word-break:break-word}
+
+  /* panels */
+  .panel{background:#fff;border-radius:24px;padding:16px;margin-top:12px}
+  .panel h2{font-size:.875rem;font-weight:700;margin:0 0 4px}
+  .panel p{font-size:.75rem;color:#123A5C99;margin:0 0 8px}
+  label{display:block;font-size:.875rem;margin-bottom:8px}
+  textarea,input[type=text]{
+    width:100%;background:var(--ice);border:2px solid #123A5C22;border-radius:16px;
+    padding:12px;color:var(--ink);font-family:inherit;font-size:1rem
+  }
+  textarea{resize:vertical;min-height:180px}
+  input[type=text]{font-size:.75rem}
+  input.bad{border-color:var(--blush)}
+  .err{font-size:.75rem;color:#C0436A;margin:4px 0 0}
+  .divider{margin-top:16px;padding-top:16px;border-top:2px solid #123A5C15}
+  .mt8{margin-top:8px}
+  [hidden]{display:none !important}
+
+  /* confetti */
+  #confetti{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:20}
+  #confetti span{position:absolute;top:0}
+
+  @keyframes fall{
+    0%{transform:translate3d(0,-40px,0) rotate(0);opacity:0}
+    12%{opacity:1}
+    100%{transform:translate3d(var(--dx),105vh,0) rotate(320deg);opacity:0}
+  }
+  @keyframes jump{0%,100%{transform:translateX(-50%) translateY(0)}25%{transform:translateX(-50%) translateY(-14px)}
+    45%{transform:translateX(-50%) translateY(0)}62%{transform:translateX(-50%) translateY(-7px)}80%{transform:translateX(-50%) translateY(0)}}
+  @keyframes sway{0%,100%{transform:translateX(-50%) rotate(-1.6deg)}50%{transform:translateX(-50%) rotate(1.6deg)}}
+  @keyframes pop{0%{transform:scale(.7);opacity:0}60%{transform:scale(1.06);opacity:1}100%{transform:scale(1);opacity:1}}
+
+  @media (prefers-reduced-motion:reduce){
+    .penguin.sway,.penguin.jump,.card{animation:none}
+    #confetti span{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="confetti" aria-hidden="true"></div>
+
+<div class="wrap">
+  <header>
+    <h1>ペンギンルーレット</h1>
+    <button id="muteBtn" class="chip" aria-pressed="false">音を消す</button>
+  </header>
+  <p class="lede">羽が止まったところが今日の答え。</p>
+
+  <div class="stage">
+    <div class="wheel-slot">
+      <div id="wheelRot">
+        <svg id="wheel" viewBox="0 0 320 320" role="img" aria-label="ルーレット盤"></svg>
+      </div>
+    </div>
+
+    <div class="penguin" id="penguin">
+      <svg viewBox="0 0 140 152" role="img" aria-label="ペンギン">
+        <ellipse cx="40" cy="116" rx="13" ry="7" fill="#FFB020"/>
+        <ellipse cx="62" cy="116" rx="13" ry="7" fill="#FFB020"/>
+        <path d="M18 96 Q6 104 14 110 Q22 108 26 100 Z" fill="#0F2F4A"/>
+        <ellipse cx="52" cy="66" rx="36" ry="54" fill="#0F2F4A"/>
+        <ellipse cx="52" cy="70" rx="26" ry="45" fill="#fff"/>
+        <circle cx="34" cy="62" r="6" fill="#FF8FAE" opacity=".75"/>
+        <circle cx="70" cy="62" r="6" fill="#FF8FAE" opacity=".75"/>
+        <circle cx="42" cy="46" r="5" fill="#0F2F4A"/>
+        <circle cx="62" cy="46" r="5" fill="#0F2F4A"/>
+        <circle cx="43.6" cy="44.2" r="1.7" fill="#fff"/>
+        <circle cx="63.6" cy="44.2" r="1.7" fill="#fff"/>
+        <path d="M45 57 L59 57 L52 68 Z" fill="#FFB020"/>
+        <path d="M20 56 Q6 76 14 100 Q24 94 26 70 Z" fill="#0F2F4A"/>
+        <g id="wing">
+          <path d="M76 50 Q94 62 86 96 Q80 126 70 148 Q62 124 66 94 Q66 64 76 50 Z" fill="#0F2F4A"/>
+          <path d="M70 148 Q66 132 68 118 Q76 130 70 148 Z" fill="#FFB020"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <div class="result" id="result" aria-live="polite"></div>
+
+  <button id="spinBtn" class="primary">まわす</button>
+
+  <div class="row">
+    <button id="editBtn" class="ghost">候補を書きかえる</button>
+    <button id="shareBtn" class="ghost">この候補を共有</button>
+  </div>
+
+  <section class="panel" id="editPanel" hidden>
+    <label for="items">1行に1つ書いてください（最大20個）</label>
+    <textarea id="items" rows="8" placeholder="ラーメン&#10;カレー&#10;寿司"></textarea>
+    <div class="row">
+      <button id="clearBtn" class="ghost">全部消す</button>
+      <button id="doneBtn" class="solid">これで決定</button>
+    </div>
+  </section>
+
+  <section class="panel" id="sharePanel" hidden>
+    <h2>今の候補が入ったリンク</h2>
+    <p id="shareCount"></p>
+    <input type="text" id="shareUrl" readonly>
+    <button id="copyBtn" class="solid mt8">リンクをコピー</button>
+
+    <div class="divider">
+      <h2>もらったリンクを読み込む</h2>
+      <input type="text" id="importUrl" placeholder="リンクを貼りつけ">
+      <p class="err" id="importErr" hidden></p>
+      <button id="importBtn" class="solid mt8">候補を差しかえる</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var SEG_COLORS = ["#A8DCEF","#FFD98E","#F7B7C8","#BFE8D0","#C9C6F0","#FFC9A3","#D6E9A8","#9FCFE8"];
+  var DEFAULT_TEXT = "ラーメン\nカレー\n寿司\nパスタ\nハンバーガー\nそば";
+  var MAX_ITEMS = 20;
+  var FLAKES = ["❄","✦","✻","❅"];
+  var SVGNS = "http://www.w3.org/2000/svg";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var state = { text: DEFAULT_TEXT, items: [], rotation: 0, spinning: false, muted: false, raf: 0 };
+
+  /* ---------- share code ---------- */
+  function encodeList(str) {
+    try {
+      var bytes = new TextEncoder().encode(str), bin = "";
+      bytes.forEach(function (b) { bin += String.fromCharCode(b); });
+      return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    } catch (e) { return ""; }
+  }
+  function decodeList(code) {
+    try {
+      var b = code.replace(/-/g, "+").replace(/_/g, "/");
+      var bin = atob(b + "=".repeat((4 - (b.length % 4)) % 4));
+      var bytes = Uint8Array.from(bin, function (c) { return c.charCodeAt(0); });
+      return new TextDecoder().decode(bytes);
+    } catch (e) { return null; }
+  }
+  function extractCode(raw) {
+    var s = (raw || "").trim();
+    if (!s) return null;
+    var m = s.match(/[?#&]r=([A-Za-z0-9\-_]+)/);
+    if (m) return m[1];
+    return /^[A-Za-z0-9\-_]+$/.test(s) ? s : null;
+  }
+
+  /* ---------- audio ---------- */
+  var ac = null;
+  function audio() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!ac) ac = new AC();
+    if (ac.state === "suspended") ac.resume();
+    return ac;
+  }
+  function tone(freq, dur, type, vol, delay, slideTo) {
+    if (state.muted) return;
+    var c = audio(); if (!c) return;
+    var t0 = c.currentTime + (delay || 0);
+    var osc = c.createOscillator(), gain = c.createGain();
+    osc.type = type || "triangle";
+    osc.frequency.setValueAtTime(freq, t0);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(gain).connect(c.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.05);
+  }
+  var tick = function () { tone(1180 + Math.random() * 260, 0.035, "square", 0.05); };
+  var whoosh = function () { tone(760, 0.55, "sawtooth", 0.06, 0, 170); };
+  function fanfare() {
+    [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) { tone(f, 0.26, "triangle", 0.16, i * 0.095); });
+    tone(1567.98, 0.7, "sine", 0.1, 0.42);
+    tone(1046.5, 0.7, "triangle", 0.1, 0.42);
+  }
+
+  /* ---------- wheel ---------- */
+  function polar(a, r) {
+    var rad = a * Math.PI / 180;
+    return [160 + r * Math.cos(rad), 160 + r * Math.sin(rad)];
+  }
+  function arcPath(a0, a1, r) {
+    var p0 = polar(a0, r), p1 = polar(a1, r), large = (a1 - a0) > 180 ? 1 : 0;
+    return "M 160 160 L " + p0[0].toFixed(2) + " " + p0[1].toFixed(2) +
+      " A " + r + " " + r + " 0 " + large + " 1 " + p1[0].toFixed(2) + " " + p1[1].toFixed(2) + " Z";
+  }
+  function el(name, attrs) {
+    var n = document.createElementNS(SVGNS, name);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+  function clip(s, n) { return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+
+  function drawWheel() {
+    var svg = $("wheel"), items = state.items;
+    svg.textContent = "";
+    svg.appendChild(el("circle", { cx: 160, cy: 160, r: 152, fill: "#FFFFFF" }));
+    svg.appendChild(el("circle", { cx: 160, cy: 160, r: 147, fill: "#0F2F4A" }));
+
+    var seg = items.length ? 360 / items.length : 360;
+    if (items.length === 0) {
+      svg.appendChild(el("circle", { cx: 160, cy: 160, r: 140, fill: "#FFFFFF" }));
+    } else if (items.length === 1) {
+      svg.appendChild(el("circle", { cx: 160, cy: 160, r: 140, fill: SEG_COLORS[0] }));
+    } else {
+      items.forEach(function (_, i) {
+        var ci = i % SEG_COLORS.length;
+        if (i === items.length - 1 && ci === 0) ci = 3;
+        svg.appendChild(el("path", {
+          d: arcPath(i * seg - 90, (i + 1) * seg - 90, 140),
+          fill: SEG_COLORS[ci], stroke: "#FFFFFF", "stroke-width": 2
+        }));
+      });
+    }
+
+    var size = items.length <= 6 ? 16 : items.length <= 10 ? 13 : 11;
+    var chars = items.length <= 6 ? 8 : items.length <= 12 ? 6 : 5;
+    items.forEach(function (item, i) {
+      var g = el("g", { transform: "rotate(" + ((i + 0.5) * seg - 90) + " 160 160)" });
+      var t = el("text", {
+        x: 288, y: 160, "text-anchor": "end", "dominant-baseline": "central",
+        "font-size": size, class: "seg-label"
+      });
+      t.textContent = clip(item, chars);
+      g.appendChild(t);
+      svg.appendChild(g);
+    });
+
+    svg.appendChild(el("circle", { cx: 160, cy: 160, r: 26, fill: "#FFFFFF", stroke: "#0F2F4A", "stroke-width": 4 }));
+    svg.appendChild(el("circle", { cx: 160, cy: 160, r: 9, fill: "#FFB020" }));
+    for (var i = 0; i < 12; i++) {
+      var p = polar(i * 30 - 90, 144);
+      svg.appendChild(el("circle", { cx: p[0], cy: p[1], r: 2.6, fill: "#FFFFFF", opacity: .85 }));
+    }
+  }
+
+  function indexAt(rot) {
+    var n = state.items.length;
+    if (!n) return 0;
+    var at = (((360 - (rot % 360)) % 360) + 360) % 360;
+    return Math.floor(at / (360 / n)) % n;
+  }
+
+  /* ---------- render ---------- */
+  function parseItems(text) {
+    return text.split("\n").map(function (s) { return s.trim(); })
+      .filter(Boolean).slice(0, MAX_ITEMS);
+  }
+
+  function syncUrl() {
+    var code = state.items.length ? encodeList(state.items.join("\n")) : "";
+    if (!code) return "";
+    try { history.replaceState(null, "", "?r=" + code); } catch (e) {}
+    var base = location.origin && location.origin !== "null" ? location.origin + location.pathname : "";
+    return base ? base + "?r=" + code : "?r=" + code;
+  }
+
+  function setText(text, opts) {
+    state.text = text;
+    state.items = parseItems(text);
+    if (!opts || !opts.keepBox) $("items").value = text;
+    drawWheel();
+    var url = syncUrl();
+    $("shareUrl").value = url;
+    $("shareCount").textContent = "開くと同じ" + state.items.length + "個の候補で始まります。";
+    showHint();
+    updateSpinBtn();
+  }
+
+  function showHint() {
+    $("result").innerHTML = '<span class="hint">' +
+      (state.items.length < 2 ? "候補を2つ以上入れてね" : state.items.length + "個の候補から選びます") +
+      "</span>";
+  }
+
+  function updateSpinBtn() {
+    var b = $("spinBtn");
+    b.disabled = state.spinning || state.items.length < 2;
+    b.classList.toggle("is-spinning", state.spinning);
+  }
+
+  function confetti() {
+    var box = $("confetti");
+    box.textContent = "";
+    for (var i = 0; i < 26; i++) {
+      var s = document.createElement("span");
+      s.textContent = FLAKES[i % FLAKES.length];
+      s.style.left = (Math.random() * 100) + "%";
+      s.style.fontSize = (12 + Math.random() * 16) + "px";
+      s.style.color = i % 2 ? "#FFB020" : "#7FC3E3";
+      s.style.setProperty("--dx", ((Math.random() - 0.5) * 60) + "px");
+      s.style.animation = "fall " + (2.4 + Math.random() * 1.8) + "s linear " + (Math.random() * 1.1) + "s forwards";
+      box.appendChild(s);
+    }
+    setTimeout(function () { box.textContent = ""; }, 6000);
+  }
+
+  /* ---------- spin ---------- */
+  function spin() {
+    if (state.spinning || state.items.length < 2) return;
+    audio(); whoosh();
+    state.spinning = true;
+    updateSpinBtn();
+    showHint();
+    $("penguin").classList.remove("jump");
+    $("penguin").classList.add("sway");
+
+    var from = state.rotation;
+    var target = from + 360 * (4 + Math.random() * 3) + Math.random() * 360;
+    var duration = reduced ? 900 : 4300 + Math.random() * 900;
+    var start = performance.now();
+    var lastIdx = indexAt(from), lastTickAt = 0, flip = false;
+
+    function step(now) {
+      var t = Math.min(1, (now - start) / duration);
+      var cur = from + (target - from) * (1 - Math.pow(1 - t, 3.6));
+      state.rotation = cur;
+      $("wheelRot").style.transform = "rotate(" + cur + "deg)";
+
+      var idx = indexAt(cur);
+      if (idx !== lastIdx) {
+        lastIdx = idx;
+        if (now - lastTickAt > 45) {
+          lastTickAt = now; tick(); flip = !flip;
+          $("wing").style.transform = "rotate(" + (flip ? -13 : 0) + "deg)";
+        }
+      }
+
+      if (t < 1) { state.raf = requestAnimationFrame(step); return; }
+
+      state.rotation = target;
+      $("wheelRot").style.transform = "rotate(" + target + "deg)";
+      $("wing").style.transform = "rotate(0deg)";
+      state.spinning = false;
+      updateSpinBtn();
+      $("spinBtn").textContent = "もう一回まわす";
+      $("penguin").classList.remove("sway");
+      void $("penguin").offsetWidth;
+      $("penguin").classList.add("jump");
+
+      var win = state.items[indexAt(target)];
+      $("result").innerHTML = '<div class="card"><small>ペンギンが選んだのは</small><strong></strong></div>';
+      $("result").querySelector("strong").textContent = win;
+      fanfare();
+      confetti();
+    }
+    state.raf = requestAnimationFrame(step);
+  }
+
+  /* ---------- wiring ---------- */
+  $("spinBtn").addEventListener("click", spin);
+
+  $("muteBtn").addEventListener("click", function () {
+    state.muted = !state.muted;
+    this.textContent = state.muted ? "音を出す" : "音を消す";
+    this.setAttribute("aria-pressed", String(state.muted));
+  });
+
+  $("editBtn").addEventListener("click", function () {
+    var open = $("editPanel").hidden;
+    $("editPanel").hidden = !open;
+    $("sharePanel").hidden = true;
+    $("shareBtn").textContent = "この候補を共有";
+    this.textContent = open ? "候補を閉じる" : "候補を書きかえる";
+  });
+
+  $("shareBtn").addEventListener("click", function () {
+    var open = $("sharePanel").hidden;
+    $("sharePanel").hidden = !open;
+    $("editPanel").hidden = true;
+    $("editBtn").textContent = "候補を書きかえる";
+    this.textContent = open ? "共有を閉じる" : "この候補を共有";
+  });
+
+  $("items").addEventListener("input", function () {
+    setText(this.value, { keepBox: true });
+    $("spinBtn").textContent = "まわす";
+  });
+
+  $("clearBtn").addEventListener("click", function () { setText(""); });
+  $("doneBtn").addEventListener("click", function () {
+    $("editPanel").hidden = true;
+    $("editBtn").textContent = "候補を書きかえる";
+  });
+
+  $("shareUrl").addEventListener("focus", function () { this.select(); });
+
+  $("copyBtn").addEventListener("click", function () {
+    var btn = this, url = $("shareUrl").value;
+    var done = function () {
+      btn.textContent = "コピーしました";
+      btn.classList.add("copied");
+      setTimeout(function () { btn.textContent = "リンクをコピー"; btn.classList.remove("copied"); }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done, function () { $("shareUrl").select(); });
+    } else {
+      $("shareUrl").select();
+      try { document.execCommand("copy"); done(); } catch (e) {}
+    }
+  });
+
+  $("importUrl").addEventListener("input", function () {
+    this.classList.remove("bad");
+    $("importErr").hidden = true;
+  });
+
+  $("importBtn").addEventListener("click", function () {
+    var raw = $("importUrl").value;
+    var code = extractCode(raw);
+    var decoded = code ? decodeList(code) : null;
+    if (!decoded || !decoded.trim()) {
+      $("importUrl").classList.add("bad");
+      $("importErr").textContent = "読み込めませんでした。リンク全体かコードを貼りなおしてください。";
+      $("importErr").hidden = false;
+      return;
+    }
+    setText(decoded);
+    $("importUrl").value = "";
+    $("spinBtn").textContent = "まわす";
+  });
+
+  /* ---------- boot ---------- */
+  var fromUrl = extractCode(location.search + location.hash);
+  var initial = fromUrl ? decodeList(fromUrl) : null;
+  setText(initial && initial.trim() ? initial : DEFAULT_TEXT);
+})();
+</script>
+</body>
+</html>
